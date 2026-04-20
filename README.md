@@ -33,8 +33,7 @@ This ASP.NET Core minimal API application demonstrates:
    - Open the solution/project file
 
 2. **Configure Connection String**
-   - Right-click on the project → **Manage User Secrets**
-   - Add your connection string as shown in the Configuration section
+   - Already on "appsettings.json" (public for training purpose)
 
 3. **Run the Application**
    - Press **F5** or click the **Start** button (green play button)
@@ -43,36 +42,30 @@ This ASP.NET Core minimal API application demonstrates:
 
 4. **Access Swagger UI**
    - The app automatically redirects to `/swagger`
-   - URL: `https://localhost:<port>/swagger` (Example: `https://localhost:7155/swagger/index.html`)
+   - URL: `https://localhost:<port>/swagger/index.html` (Example: `https://localhost:7155/swagger/index.html`)
 
 ### Running via Terminal/Command Line
 
 1. **Navigate to Project Directory**
    ```bash
-   cd your-path\DotNetSQLAZ104
+   git clone https://github.com/phattruong-agilityio/az104-sqlserver.git
    ```
 
-2. **Configure Connection String** (if not already done)
-   ```bash
-   dotnet user-secrets init
-   dotnet user-secrets set "ConnectionStrings:AZURE_SQL_CONNECTIONSTRING" "your-connection-string-here"
-   ```
-
-3. **Restore Dependencies**
+2. **Restore Dependencies**
    ```bash
    dotnet restore
    ```
 
-4. **Build the Application**
+3. **Build the Application**
    ```bash
    dotnet build
    ```
 
-5. **Run the Application**
+4. **Run the Application**
    ```bash
    dotnet run --launch-profile https
    ```
 
-6. **Access the Application**
+5. **Access the Application**
    
     - Open your browser and navigate to `https://localhost:<port>/swagger/index.html` (Example: `https://localhost:7155/swagger/index.html`)
