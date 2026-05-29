@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,31 +44,56 @@ async Task<string> GetConnectionStringFromKeyVault()
     }
 }
 
-// Retrieve the connection string from Azure Key Vault before starting the application.
-// This ensures that the connection string is available for the endpoints that interact with the database.
-string connectionString = GetConnectionStringFromKeyVault().GetAwaiter().GetResult();
+// Keep the app running even when Key Vault/SQL is temporarily unavailable.
+// This allows /swagger to load and provides clearer API errors instead of app startup failure.
+string? connectionString = app.Configuration["SQL_CONNECTION"];
 
-try
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    using var conn = new SqlConnection(connectionString);
-    conn.Open();
+    try
+    {
+        connectionString = await GetConnectionStringFromKeyVault();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Unable to load SQL connection string from Key Vault.");
+    }
+}
 
-    var command = new SqlCommand(
-        "CREATE TABLE Persons (ID int NOT NULL PRIMARY KEY IDENTITY, FirstName varchar(255), LastName varchar(255));",
-        conn);
-    using SqlDataReader reader = command.ExecuteReader();
-}
-catch (Exception e)
+if (!string.IsNullOrWhiteSpace(connectionString))
 {
-    // Table may already exist
-    Console.WriteLine(e.Message);
+    try
+    {
+        using var conn = new SqlConnection(connectionString);
+        conn.Open();
+
+        var command = new SqlCommand(
+            "IF OBJECT_ID('dbo.Persons', 'U') IS NULL CREATE TABLE Persons (ID int NOT NULL PRIMARY KEY IDENTITY, FirstName varchar(255), LastName varchar(255));",
+            conn);
+        command.ExecuteNonQuery();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Database initialization failed.");
+    }
 }
+
+IResult DatabaseUnavailable() =>
+    Results.Problem(
+        detail: "Database connection is not configured or not reachable.",
+        statusCode: StatusCodes.Status503ServiceUnavailable,
+        title: "Service temporarily unavailable");
 
 app.MapGet("/Person", () =>
 {
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        return DatabaseUnavailable();
+    }
+
     var rows = new List<string>();
 
-    using var conn = new SqlConnection(connectionString);
+    using var conn = new SqlConnection(connectionString!);
     conn.Open();
 
     var command = new SqlCommand("SELECT * FROM Persons", conn);
@@ -81,13 +107,18 @@ app.MapGet("/Person", () =>
         }
     }
 
-    return rows;
+    return Results.Ok(rows);
 })
 .WithName("GetPersons");
 
 app.MapPost("/Person", (Person person) =>
 {
-    using var conn = new SqlConnection(connectionString);
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        return DatabaseUnavailable();
+    }
+
+    using var conn = new SqlConnection(connectionString!);
     conn.Open();
 
     var command = new SqlCommand(
@@ -98,9 +129,17 @@ app.MapPost("/Person", (Person person) =>
     command.Parameters.AddWithValue("@firstName", person.FirstName);
     command.Parameters.AddWithValue("@lastName", person.LastName);
 
-    using SqlDataReader reader = command.ExecuteReader();
+    command.ExecuteNonQuery();
+
+    return Results.Created("/Person", person);
 })
 .WithName("CreatePerson");
+
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    databaseConfigured = !string.IsNullOrWhiteSpace(connectionString)
+}));
 
 app.MapGet("/", () => Results.Redirect("/swagger"))
     .ExcludeFromDescription();
