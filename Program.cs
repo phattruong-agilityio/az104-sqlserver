@@ -29,9 +29,25 @@ async Task<string> GetConnectionStringFromKeyVault()
     {
         Console.WriteLine("Retrieving your secret from Azure KeyVault.");
 
-        var keyvaultUri = new Uri(app.Configuration.GetConnectionString("AZ_KEYVAULT_URI") ?? throw new InvalidOperationException("AZ_KEYVAULT_URI connection string is not configured."));
+        string? keyVaultUriValue = app.Configuration["AZ_KEYVAULT_URI"]
+            ?? app.Configuration["ConnectionStrings:AZ_KEYVAULT_URI"];
+
+        string? keyVaultSecretName = app.Configuration["AZ_KEYVAULT_SECRET_NAME"]
+            ?? app.Configuration["ConnectionStrings:AZ_KEYVAULT_SECRET_NAME"];
+
+        if (string.IsNullOrWhiteSpace(keyVaultUriValue))
+        {
+            throw new InvalidOperationException("AZ_KEYVAULT_URI is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keyVaultSecretName))
+        {
+            throw new InvalidOperationException("AZ_KEYVAULT_SECRET_NAME is not configured.");
+        }
+
+        var keyvaultUri = new Uri(keyVaultUriValue);
         var keyvaultSecretClient = new SecretClient(keyvaultUri, new DefaultAzureCredential());
-        var secretKey = await keyvaultSecretClient.GetSecretAsync(app.Configuration.GetConnectionString("AZ_KEYVAULT_SECRET_NAME"));
+        var secretKey = await keyvaultSecretClient.GetSecretAsync(keyVaultSecretName);
 
         Console.WriteLine("Done.");
 
@@ -134,12 +150,6 @@ app.MapPost("/Person", (Person person) =>
     return Results.Created("/Person", person);
 })
 .WithName("CreatePerson");
-
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "ok",
-    databaseConfigured = connectionString
-}));
 
 app.MapGet("/", () => Results.Redirect("/swagger"))
     .ExcludeFromDescription();
