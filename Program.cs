@@ -1,12 +1,15 @@
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.Data.SqlClient;
-using Microsoft.AspNetCore.Http;
+using DotNetSQLAZ104.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IPersonService, PersonService>();
 
 var app = builder.Build();
 
@@ -14,6 +17,21 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+app.MapControllers();
+
+app.MapGet("/", () => Results.Redirect("/swagger"))
+    .ExcludeFromDescription();
+
+app.MapGet("/health", async (IPersonService personService) =>
+{
+    var isHealthy = await personService.IsDatabaseHealthyAsync();
+    return Results.Ok(new
+    {
+        status = "ok",
+        databaseConfigured = isHealthy
+    });
+});
 
 
 /// <summary>
@@ -93,65 +111,5 @@ if (!string.IsNullOrWhiteSpace(connectionString))
         app.Logger.LogError(ex, "Database initialization failed.");
     }
 }
-
-IResult DatabaseUnavailable() =>
-    Results.Problem(
-        detail: "Database connection is not configured or not reachable.",
-        statusCode: StatusCodes.Status503ServiceUnavailable,
-        title: "Service temporarily unavailable");
-
-app.MapGet("/Person", () =>
-{
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        return DatabaseUnavailable();
-    }
-
-    var rows = new List<string>();
-
-    using var conn = new SqlConnection(connectionString!);
-    conn.Open();
-
-    var command = new SqlCommand("SELECT * FROM Persons", conn);
-    using SqlDataReader reader = command.ExecuteReader();
-
-    if (reader.HasRows)
-    {
-        while (reader.Read())
-        {
-            rows.Add($"{reader.GetInt32(0)}, {reader.GetString(1)}, {reader.GetString(2)}");
-        }
-    }
-
-    return Results.Ok(rows);
-})
-.WithName("GetPersons");
-
-app.MapPost("/Person", (Person person) =>
-{
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        return DatabaseUnavailable();
-    }
-
-    using var conn = new SqlConnection(connectionString!);
-    conn.Open();
-
-    var command = new SqlCommand(
-        "INSERT INTO Persons (firstName, lastName) VALUES (@firstName, @lastName)",
-        conn);
-
-    command.Parameters.Clear();
-    command.Parameters.AddWithValue("@firstName", person.FirstName);
-    command.Parameters.AddWithValue("@lastName", person.LastName);
-
-    command.ExecuteNonQuery();
-
-    return Results.Created("/Person", person);
-})
-.WithName("CreatePerson");
-
-app.MapGet("/", () => Results.Redirect("/swagger"))
-    .ExcludeFromDescription();
 
 app.Run();
