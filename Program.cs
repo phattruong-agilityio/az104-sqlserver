@@ -1,3 +1,5 @@
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,20 +9,46 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// For production scenarios, consider keeping Swagger configurations behind the environment check
-// if (app.Environment.IsDevelopment())
-// {
 app.UseSwagger();
 app.UseSwaggerUI();
-// }
 
 app.UseHttpsRedirection();
 
-string connectionString = app.Configuration.GetConnectionString("AZURE_SQL_CONNECTIONSTRING")!;
+
+/// <summary>
+/// Retrieves the connection string from Azure Key Vault using the SecretClient.
+/// </summary> <returns>The connection string retrieved from Azure Key Vault.</returns>
+/// <remarks>
+/// This method uses the Azure SDK to connect to Azure Key Vault and retrieve a secret.
+/// Make sure to set the appropriate environment variables for authentication (e.g., AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET) and the connection string for the Key Vault URI and secret name in your configuration.
+/// </remarks>
+async Task<string> GetConnectionStringFromKeyVault()
+{
+    try
+    {
+        Console.WriteLine("Retrieving your secret from Azure KeyVault.");
+
+        var keyvaultUri = new Uri(app.Configuration.GetConnectionString("AZ_KEYVAULT_URI") ?? throw new InvalidOperationException("AZ_KEYVAULT_URI connection string is not configured."));
+        var keyvaultSecretClient = new SecretClient(keyvaultUri, new DefaultAzureCredential());
+        var secretKey = await keyvaultSecretClient.GetSecretAsync(app.Configuration.GetConnectionString("AZ_KEYVAULT_SECRET_NAME"));
+
+        Console.WriteLine("Done.");
+
+        return secretKey.Value.Value;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error retrieving secret from Key Vault: {ex.Message}");
+        throw;
+    }
+}
+
+// Retrieve the connection string from Azure Key Vault before starting the application.
+// This ensures that the connection string is available for the endpoints that interact with the database.
+string connectionString = GetConnectionStringFromKeyVault().GetAwaiter().GetResult();
 
 try
 {
-    // Table would be created ahead of time in production
     using var conn = new SqlConnection(connectionString);
     conn.Open();
 
