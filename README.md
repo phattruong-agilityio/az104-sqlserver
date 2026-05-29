@@ -24,6 +24,24 @@ This ASP.NET Core minimal API application demonstrates:
 - Swagger/OpenAPI documentation
 - SQL parameterized queries
 
+## Troubleshooting: SQL Post-Login Timeout
+
+If you see an error similar to:
+
+`Connection Timeout Expired ... [Post-Login] complete=...`
+
+Use this checklist:
+
+1. Verify the SQL server name in your connection string uses `tcp:<server>.database.windows.net,1433`.
+2. Verify Azure SQL firewall rules allow your client public IP.
+3. If you are on a restricted corporate network, either:
+   - Set Azure SQL **Connection policy** to **Proxy**, or
+   - Allow outbound TCP ports `11000-11999` (required by Redirect mode).
+4. Ensure the SQL login/user in the connection string is valid and not locked.
+5. Confirm there is no VPN/proxy TLS interception blocking SQL TLS negotiation.
+
+This API now logs additional SQL diagnostics (error number/state/class) and returns `503` when the database is unreachable.
+
 ## How to Run
 
 ### Running in Visual Studio
