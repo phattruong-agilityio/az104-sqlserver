@@ -138,7 +138,7 @@ app.MapPost("/Person", (Person person) =>
 app.MapGet("/health", () => Results.Ok(new
 {
     status = "ok",
-    databaseConfigured = !string.IsNullOrWhiteSpace(connectionString)
+    databaseConfigured = connectionString
 }));
 
 app.MapGet("/", () => Results.Redirect("/swagger"))
