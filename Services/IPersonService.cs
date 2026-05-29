@@ -19,10 +19,4 @@ public interface IPersonService
     /// <param name="person">The person object containing FirstName and LastName.</param>
     /// <returns>The created person object.</returns>
     Task<Person> CreatePersonAsync(Person person);
-
-    /// <summary>
-    /// Checks if the database connection is available.
-    /// </summary>
-    /// <returns>True if database is configured and reachable, false otherwise.</returns>
-    Task<bool> IsDatabaseHealthyAsync();
 }

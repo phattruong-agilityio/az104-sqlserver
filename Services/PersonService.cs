@@ -8,13 +8,13 @@ namespace DotNetSQLAZ104.Services;
 /// </summary>
 public class PersonService : IPersonService
 {
-    private readonly string? _connectionString;
+    private readonly IInfraService _infraService;
     private readonly ILogger<PersonService> _logger;
 
-    public PersonService(IConfiguration configuration, ILogger<PersonService> logger)
+    public PersonService(IInfraService infraService, ILogger<PersonService> logger)
     {
+        _infraService = infraService;
         _logger = logger;
-        _connectionString = configuration["SQL_CONNECTION"];
     }
 
     /// <summary>
@@ -22,7 +22,9 @@ public class PersonService : IPersonService
     /// </summary>
     public async Task<List<string>> GetAllPersonsAsync()
     {
-        if (string.IsNullOrWhiteSpace(_connectionString))
+        var connectionString = await _infraService.GetConnectionStringAsync();
+
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
             _logger.LogWarning("Database connection string is not configured.");
             throw new InvalidOperationException("Database connection is not configured.");
@@ -32,7 +34,7 @@ public class PersonService : IPersonService
 
         try
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new SqlConnection(connectionString);
             await conn.OpenAsync();
 
             var command = new SqlCommand("SELECT * FROM Persons", conn);
@@ -62,7 +64,9 @@ public class PersonService : IPersonService
     /// </summary>
     public async Task<Person> CreatePersonAsync(Person person)
     {
-        if (string.IsNullOrWhiteSpace(_connectionString))
+        var connectionString = await _infraService.GetConnectionStringAsync();
+
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
             _logger.LogWarning("Database connection string is not configured.");
             throw new InvalidOperationException("Database connection is not configured.");
@@ -70,7 +74,7 @@ public class PersonService : IPersonService
 
         try
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new SqlConnection(connectionString);
             await conn.OpenAsync();
 
             var command = new SqlCommand(
@@ -91,30 +95,5 @@ public class PersonService : IPersonService
         }
 
         return person;
-    }
-
-    /// <summary>
-    /// Checks if the database connection is available.
-    /// </summary>
-    public async Task<bool> IsDatabaseHealthyAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_connectionString))
-        {
-            _logger.LogWarning("Database connection string is not configured.");
-            return false;
-        }
-
-        try
-        {
-            using var conn = new SqlConnection(_connectionString);
-            await conn.OpenAsync();
-            _logger.LogInformation("Database health check passed.");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Database health check failed.");
-            return false;
-        }
     }
 }
